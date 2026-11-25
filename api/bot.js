@@ -2,17 +2,15 @@ const { Telegraf, Markup } = require('telegraf');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-// Gambar Banner Landscape Full Layar (Rasio 16:9 - ganti sesuai kebutuhan)
 const BANNER = {
   UTAMA: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1280&auto=format&fit=crop',
   KAT: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=1280&auto=format&fit=crop',
   FITUR: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?q=80&w=1280&auto=format&fit=crop'
 };
 
-// Helper pembuat tabel 2 kolom rata (SYSTEM | DETAIL) di dalam <pre>
 const buatTabelInfo = (rows) => {
-  const col1Width = 17;
-  const col2Width = 18;
+  const col1Width = 14;
+  const col2Width = 14;
   const line = `+${'-'.repeat(col1Width + 2)}+${'-'.repeat(col2Width + 2)}+`;
   const header = `| ${'SYSTEM'.padEnd(col1Width)} | ${'DETAIL'.padEnd(col2Width)} |`;
 
@@ -27,18 +25,14 @@ const buatTabelInfo = (rows) => {
   return `<pre>${line}\n${header}\n${line}\n${body}\n${line}</pre>`;
 };
 
-// ==========================================
-// MENU UTAMA (/start)
-// ==========================================
 const getMenuUtama = (namaUser) => {
   const waktuWIB = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
 
   const tabel = buatTabelInfo([
     ['Version', '7.0.0'],
     ['Hosting', 'Vercel 24/7'],
-    ['Server Time', waktuWIB.slice(0, 18)],
-    ['Mode', 'Webhook Active'],
-    ['Total Blok', '10 Menu'],
+    ['Server Time', waktuWIB.slice(0, 16)],
+    ['Mode', 'Webhook'],
     ['Status', 'Online']
   ]);
 
@@ -54,12 +48,8 @@ const getMenuUtama = (namaUser) => {
       Markup.button.callback('Fitur Utama', 'kat_fitur_utama'),
       Markup.button.callback('Tools', 'kat_tools')
     ],
-    [
-      Markup.button.callback('Fun & Games', 'kat_fun')
-    ],
-    [
-      Markup.button.callback('Control Center', 'kat_control')
-    ],
+    [Markup.button.callback('Fun & Games', 'kat_fun')],
+    [Markup.button.callback('Control Center', 'kat_control')],
     [
       Markup.button.callback('Jaga Group', 'kat_group'),
       Markup.button.callback('Market', 'kat_market')
@@ -68,49 +58,72 @@ const getMenuUtama = (namaUser) => {
       Markup.button.callback('Development', 'kat_dev'),
       Markup.button.callback('Request Fitur', 'kat_request')
     ],
-    [
-      Markup.button.callback('Lapor', 'kat_lapor')
-    ],
+    [Markup.button.callback('Lapor', 'kat_lapor')],
     [
       Markup.button.callback('Refresh', 'menu_home'),
-      Markup.button.url('Channel', 'https://t.me/username_kamu')
+      Markup.button.url('Channel', 'https://t.me/telegram')
     ]
   ]);
 
   return { caption, keyboard };
 };
 
-bot.start(async (ctx) => {
+// Helper kirim/edit pesan dengan fallback ke teks jika foto gagal dimuat
+const kirimMenuAwal = async (ctx) => {
   const nama = ctx.from.first_name || 'User';
   const { caption, keyboard } = getMenuUtama(nama);
 
-  await ctx.replyWithPhoto(BANNER.UTAMA, {
-    caption,
-    parse_mode: 'HTML',
-    ...keyboard
-  });
-});
+  try {
+    await ctx.replyWithPhoto(BANNER.UTAMA, {
+      caption,
+      parse_mode: 'HTML',
+      ...keyboard
+    });
+  } catch (err) {
+    console.error('Gagal kirim foto, fallback ke teks:', err.message);
+    await ctx.reply(caption, {
+      parse_mode: 'HTML',
+      ...keyboard
+    });
+  }
+};
 
-// Kembali / Refresh Menu Utama
+const ubahMenuMedia = async (ctx, fotoUrl, caption, keyboard) => {
+  try {
+    await ctx.editMessageMedia(
+      {
+        type: 'photo',
+        media: fotoUrl,
+        caption,
+        parse_mode: 'HTML'
+      },
+      keyboard
+    );
+  } catch (err) {
+    console.error('Gagal edit media, fallback edit caption:', err.message);
+    try {
+      await ctx.editMessageCaption(caption, {
+        parse_mode: 'HTML',
+        ...keyboard
+      });
+    } catch (_) {
+      await ctx.reply(caption, {
+        parse_mode: 'HTML',
+        ...keyboard
+      });
+    }
+  }
+};
+
+bot.start(kirimMenuAwal);
+
 bot.action('menu_home', async (ctx) => {
   await ctx.answerCbQuery('Diperbarui...');
   const nama = ctx.from.first_name || 'User';
   const { caption, keyboard } = getMenuUtama(nama);
-
-  await ctx.editMessageMedia(
-    {
-      type: 'photo',
-      media: BANNER.UTAMA,
-      caption,
-      parse_mode: 'HTML'
-    },
-    keyboard
-  );
+  await ubahMenuMedia(ctx, BANNER.UTAMA, caption, keyboard);
 });
 
-// ==========================================
-// HANDLER SEMUA BLOK KATEGORI & FITUR
-// ==========================================
 const daftarBlok = {
   kat_fitur_utama: {
     judul: 'FITUR UTAMA',
@@ -127,8 +140,7 @@ const daftarBlok = {
     sub: 'Utilitas & pengecekan sistem',
     rows: [
       ['Cek ID', 'Tersedia'],
-      ['Ping Check', 'Tersedia'],
-      ['Format Text', 'Tersedia']
+      ['Ping Check', 'Tersedia']
     ],
     banner: BANNER.FITUR
   },
@@ -172,8 +184,8 @@ const daftarBlok = {
     judul: 'DEVELOPMENT',
     sub: 'Info build & integrasi sistem',
     rows: [
-      ['Engine', 'Telegraf + Node'],
-      ['Deploy', 'GitHub -> Vercel']
+      ['Engine', 'Telegraf'],
+      ['Deploy', 'Vercel']
     ],
     banner: BANNER.FITUR
   },
@@ -182,7 +194,7 @@ const daftarBlok = {
     sub: 'Ajukan ide fitur atau layanan baru',
     rows: [
       ['Status', 'Terbuka'],
-      ['Tujuan', 'Admin / Dev']
+      ['Tujuan', 'Admin']
     ],
     banner: BANNER.KAT
   },
@@ -199,8 +211,7 @@ const daftarBlok = {
 
 bot.action(Object.keys(daftarBlok), async (ctx) => {
   await ctx.answerCbQuery();
-  const key = ctx.match[0];
-  const item = daftarBlok[key];
+  const item = daftarBlok[ctx.match[0]];
   const tabel = buatTabelInfo(item.rows);
 
   const caption =
@@ -214,20 +225,10 @@ bot.action(Object.keys(daftarBlok), async (ctx) => {
       Markup.button.callback('Cek ID Saya', 'aksi_id'),
       Markup.button.callback('Ping Server', 'aksi_ping')
     ],
-    [
-      Markup.button.callback('⬅️ Kembali ke Menu Utama', 'menu_home')
-    ]
+    [Markup.button.callback('⬅️ Kembali ke Menu Utama', 'menu_home')]
   ]);
 
-  await ctx.editMessageMedia(
-    {
-      type: 'photo',
-      media: item.banner,
-      caption,
-      parse_mode: 'HTML'
-    },
-    keyboard
-  );
+  await ubahMenuMedia(ctx, item.banner, caption, keyboard);
 });
 
 bot.action('aksi_id', async (ctx) => {
@@ -238,9 +239,10 @@ bot.action('aksi_ping', async (ctx) => {
   await ctx.answerCbQuery('Webhook Vercel merespons normal!', { show_alert: true });
 });
 
-// ==========================================
-// EXPORT WEBHOOK UNTUK VERCEL
-// ==========================================
+bot.catch((err) => {
+  console.error('Telegraf Error:', err);
+});
+
 module.exports = async (req, res) => {
   try {
     if (req.method === 'POST') {
