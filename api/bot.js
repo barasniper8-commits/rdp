@@ -4,12 +4,6 @@ const bot = new Telegraf(process.env.BOT_TOKEN, {
   handlerTimeout: 30000
 });
 
-const BANNER = {
-  UTAMA: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1280&auto=format&fit=crop',
-  KAT: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=1280&auto=format&fit=crop',
-  FITUR: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?q=80&w=1280&auto=format&fit=crop'
-};
-
 const buatTabelInfo = (rows) => {
   const col1Width = 14;
   const col2Width = 14;
@@ -38,7 +32,7 @@ const getMenuUtama = (namaUser) => {
     ['Status', 'Online']
   ]);
 
-  const caption =
+  const teks =
     `Welcome, <b>${namaUser}</b> ©\n` +
     `<i>All-in-one assistant untuk kategori, tools, info & kontrol cepat.</i>\n\n` +
     `<b>SYSTEM INFORMATION</b>\n` +
@@ -67,83 +61,8 @@ const getMenuUtama = (namaUser) => {
     ]
   ]);
 
-  return { caption, keyboard };
+  return { teks, keyboard };
 };
-
-// Helper retry ringan untuk mengatasi socket hang up sesaat
-async function jalankanDenganRetry(fn, percobaan = 2) {
-  let errorTerakhir;
-  for (let i = 0; i < percobaan; i++) {
-    try {
-      return await fn();
-    } catch (err) {
-      errorTerakhir = err;
-      await new Promise((r) => setTimeout(r, 400));
-    }
-  }
-  throw errorTerakhir;
-}
-
-const kirimMenuAwal = async (ctx) => {
-  const nama = ctx.from?.first_name || 'User';
-  const { caption, keyboard } = getMenuUtama(nama);
-
-  try {
-    await jalankanDenganRetry(() =>
-      ctx.replyWithPhoto(BANNER.UTAMA, {
-        caption,
-        parse_mode: 'HTML',
-        ...keyboard
-      })
-    );
-  } catch (err) {
-    console.error('Fallback kirim teks karena foto gagal:', err.message);
-    await jalankanDenganRetry(() =>
-      ctx.reply(caption, {
-        parse_mode: 'HTML',
-        ...keyboard
-      })
-    );
-  }
-};
-
-const ubahMenuMedia = async (ctx, fotoUrl, caption, keyboard) => {
-  try {
-    await jalankanDenganRetry(() =>
-      ctx.editMessageMedia(
-        {
-          type: 'photo',
-          media: fotoUrl,
-          caption,
-          parse_mode: 'HTML'
-        },
-        keyboard
-      )
-    );
-  } catch (err) {
-    console.error('Fallback edit/kirim pesan:', err.message);
-    try {
-      await ctx.editMessageCaption(caption, {
-        parse_mode: 'HTML',
-        ...keyboard
-      });
-    } catch (_) {
-      await ctx.reply(caption, {
-        parse_mode: 'HTML',
-        ...keyboard
-      });
-    }
-  }
-};
-
-bot.start(kirimMenuAwal);
-
-bot.action('menu_home', async (ctx) => {
-  await ctx.answerCbQuery('Diperbarui...').catch(() => {});
-  const nama = ctx.from?.first_name || 'User';
-  const { caption, keyboard } = getMenuUtama(nama);
-  await ubahMenuMedia(ctx, BANNER.UTAMA, caption, keyboard);
-});
 
 const daftarBlok = {
   kat_fitur_utama: {
@@ -153,8 +72,7 @@ const daftarBlok = {
       ['Modul 1', 'Aktif'],
       ['Modul 2', 'Aktif'],
       ['Respon', 'Instant']
-    ],
-    banner: BANNER.FITUR
+    ]
   },
   kat_tools: {
     judul: 'TOOLS',
@@ -162,8 +80,7 @@ const daftarBlok = {
     rows: [
       ['Cek ID', 'Tersedia'],
       ['Ping Check', 'Tersedia']
-    ],
-    banner: BANNER.FITUR
+    ]
   },
   kat_fun: {
     judul: 'FUN & GAMES',
@@ -171,8 +88,7 @@ const daftarBlok = {
     rows: [
       ['Random Pick', 'Ready'],
       ['Quick Quiz', 'Ready']
-    ],
-    banner: BANNER.KAT
+    ]
   },
   kat_control: {
     judul: 'CONTROL CENTER',
@@ -180,8 +96,7 @@ const daftarBlok = {
     rows: [
       ['Webhook', 'Connected'],
       ['Runtime', 'Serverless']
-    ],
-    banner: BANNER.FITUR
+    ]
   },
   kat_group: {
     judul: 'JAGA GROUP',
@@ -189,8 +104,7 @@ const daftarBlok = {
     rows: [
       ['Auto Info', 'Standby'],
       ['Welcome', 'Standby']
-    ],
-    banner: BANNER.KAT
+    ]
   },
   kat_market: {
     judul: 'MARKET',
@@ -198,8 +112,7 @@ const daftarBlok = {
     rows: [
       ['Paket A', 'Tersedia'],
       ['Paket B', 'Tersedia']
-    ],
-    banner: BANNER.KAT
+    ]
   },
   kat_dev: {
     judul: 'DEVELOPMENT',
@@ -207,8 +120,7 @@ const daftarBlok = {
     rows: [
       ['Engine', 'Telegraf'],
       ['Deploy', 'Vercel']
-    ],
-    banner: BANNER.FITUR
+    ]
   },
   kat_request: {
     judul: 'REQUEST FITUR',
@@ -216,8 +128,7 @@ const daftarBlok = {
     rows: [
       ['Status', 'Terbuka'],
       ['Tujuan', 'Admin']
-    ],
-    banner: BANNER.KAT
+    ]
   },
   kat_lapor: {
     judul: 'LAPOR',
@@ -225,17 +136,31 @@ const daftarBlok = {
     rows: [
       ['Saluran', 'Langsung'],
       ['Prioritas', 'Cepat']
-    ],
-    banner: BANNER.KAT
+    ]
   }
 };
+
+bot.start(async (ctx) => {
+  const nama = ctx.from?.first_name || 'User';
+  const { teks, keyboard } = getMenuUtama(nama);
+  await ctx.reply(teks, { parse_mode: 'HTML', ...keyboard });
+});
+
+bot.action('menu_home', async (ctx) => {
+  await ctx.answerCbQuery('Diperbarui...').catch(() => {});
+  const nama = ctx.from?.first_name || 'User';
+  const { teks, keyboard } = getMenuUtama(nama);
+  await ctx.editMessageText(teks, { parse_mode: 'HTML', ...keyboard }).catch(async () => {
+    await ctx.reply(teks, { parse_mode: 'HTML', ...keyboard });
+  });
+});
 
 bot.action(Object.keys(daftarBlok), async (ctx) => {
   await ctx.answerCbQuery().catch(() => {});
   const item = daftarBlok[ctx.match[0]];
   const tabel = buatTabelInfo(item.rows);
 
-  const caption =
+  const teks =
     `<b>${item.judul}</b>\n` +
     `<i>${item.sub}</i>\n\n` +
     `${tabel}\n\n` +
@@ -249,7 +174,9 @@ bot.action(Object.keys(daftarBlok), async (ctx) => {
     [Markup.button.callback('⬅️ Kembali ke Menu Utama', 'menu_home')]
   ]);
 
-  await ubahMenuMedia(ctx, item.banner, caption, keyboard);
+  await ctx.editMessageText(teks, { parse_mode: 'HTML', ...keyboard }).catch(async () => {
+    await ctx.reply(teks, { parse_mode: 'HTML', ...keyboard });
+  });
 });
 
 bot.action('aksi_id', async (ctx) => {
