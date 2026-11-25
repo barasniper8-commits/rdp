@@ -1,6 +1,8 @@
 const { Telegraf, Markup } = require('telegraf');
 
-const bot = new Telegraf(process.env.BOT_TOKEN);
+const bot = new Telegraf(process.env.BOT_TOKEN, {
+  handlerTimeout: 30000
+});
 
 const BANNER = {
   UTAMA: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1280&auto=format&fit=crop',
@@ -68,39 +70,58 @@ const getMenuUtama = (namaUser) => {
   return { caption, keyboard };
 };
 
-// Helper kirim/edit pesan dengan fallback ke teks jika foto gagal dimuat
+// Helper retry ringan untuk mengatasi socket hang up sesaat
+async function jalankanDenganRetry(fn, percobaan = 2) {
+  let errorTerakhir;
+  for (let i = 0; i < percobaan; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      errorTerakhir = err;
+      await new Promise((r) => setTimeout(r, 400));
+    }
+  }
+  throw errorTerakhir;
+}
+
 const kirimMenuAwal = async (ctx) => {
-  const nama = ctx.from.first_name || 'User';
+  const nama = ctx.from?.first_name || 'User';
   const { caption, keyboard } = getMenuUtama(nama);
 
   try {
-    await ctx.replyWithPhoto(BANNER.UTAMA, {
-      caption,
-      parse_mode: 'HTML',
-      ...keyboard
-    });
+    await jalankanDenganRetry(() =>
+      ctx.replyWithPhoto(BANNER.UTAMA, {
+        caption,
+        parse_mode: 'HTML',
+        ...keyboard
+      })
+    );
   } catch (err) {
-    console.error('Gagal kirim foto, fallback ke teks:', err.message);
-    await ctx.reply(caption, {
-      parse_mode: 'HTML',
-      ...keyboard
-    });
+    console.error('Fallback kirim teks karena foto gagal:', err.message);
+    await jalankanDenganRetry(() =>
+      ctx.reply(caption, {
+        parse_mode: 'HTML',
+        ...keyboard
+      })
+    );
   }
 };
 
 const ubahMenuMedia = async (ctx, fotoUrl, caption, keyboard) => {
   try {
-    await ctx.editMessageMedia(
-      {
-        type: 'photo',
-        media: fotoUrl,
-        caption,
-        parse_mode: 'HTML'
-      },
-      keyboard
+    await jalankanDenganRetry(() =>
+      ctx.editMessageMedia(
+        {
+          type: 'photo',
+          media: fotoUrl,
+          caption,
+          parse_mode: 'HTML'
+        },
+        keyboard
+      )
     );
   } catch (err) {
-    console.error('Gagal edit media, fallback edit caption:', err.message);
+    console.error('Fallback edit/kirim pesan:', err.message);
     try {
       await ctx.editMessageCaption(caption, {
         parse_mode: 'HTML',
@@ -118,8 +139,8 @@ const ubahMenuMedia = async (ctx, fotoUrl, caption, keyboard) => {
 bot.start(kirimMenuAwal);
 
 bot.action('menu_home', async (ctx) => {
-  await ctx.answerCbQuery('Diperbarui...');
-  const nama = ctx.from.first_name || 'User';
+  await ctx.answerCbQuery('Diperbarui...').catch(() => {});
+  const nama = ctx.from?.first_name || 'User';
   const { caption, keyboard } = getMenuUtama(nama);
   await ubahMenuMedia(ctx, BANNER.UTAMA, caption, keyboard);
 });
@@ -210,7 +231,7 @@ const daftarBlok = {
 };
 
 bot.action(Object.keys(daftarBlok), async (ctx) => {
-  await ctx.answerCbQuery();
+  await ctx.answerCbQuery().catch(() => {});
   const item = daftarBlok[ctx.match[0]];
   const tabel = buatTabelInfo(item.rows);
 
@@ -232,11 +253,11 @@ bot.action(Object.keys(daftarBlok), async (ctx) => {
 });
 
 bot.action('aksi_id', async (ctx) => {
-  await ctx.answerCbQuery(`ID Telegram kamu: ${ctx.from.id}`, { show_alert: true });
+  await ctx.answerCbQuery(`ID Telegram kamu: ${ctx.from.id}`, { show_alert: true }).catch(() => {});
 });
 
 bot.action('aksi_ping', async (ctx) => {
-  await ctx.answerCbQuery('Webhook Vercel merespons normal!', { show_alert: true });
+  await ctx.answerCbQuery('Webhook Vercel merespons normal!', { show_alert: true }).catch(() => {});
 });
 
 bot.catch((err) => {
@@ -253,6 +274,6 @@ module.exports = async (req, res) => {
     }
   } catch (err) {
     console.error('Webhook Error:', err);
-    res.status(500).send('Internal Server Error');
+    res.status(200).send('OK');
   }
 };
